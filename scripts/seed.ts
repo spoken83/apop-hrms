@@ -1,5 +1,10 @@
 import { db } from "../lib/db";
-import { entities } from "../lib/db/schema";
+import { entities, rateTables } from "../lib/db/schema";
+import {
+  CPF_TABLES,
+  SDL_TABLES,
+  SHG_TABLES,
+} from "../lib/payroll/rate-tables";
 
 // Entities per build plan §2. UEN/CSN for 11 Coffeehive and PFA are TBC
 // until incorporation — fill in via Settings when known.
@@ -20,6 +25,29 @@ async function main() {
     }
     await db.insert(entities).values(entity);
     console.log(`Seeded entity "${entity.name}"`);
+  }
+
+  // Rate tables: versioned by effective date, keyed on (type, effectiveFrom).
+  const allTables = [
+    ...CPF_TABLES.map((t) => ({ tableType: "cpf" as const, ...t })),
+    ...SDL_TABLES.map((t) => ({ tableType: "sdl" as const, ...t })),
+    ...SHG_TABLES.map((t) => ({ tableType: "shg" as const, ...t })),
+  ];
+  for (const t of allTables) {
+    const existing = await db.query.rateTables.findFirst({
+      where: (tbl, { and, eq }) =>
+        and(eq(tbl.tableType, t.tableType), eq(tbl.effectiveFrom, t.effectiveFrom)),
+    });
+    if (existing) {
+      console.log(`Rate table ${t.tableType}@${t.effectiveFrom} already exists, skipping`);
+      continue;
+    }
+    await db.insert(rateTables).values({
+      tableType: t.tableType,
+      effectiveFrom: t.effectiveFrom,
+      payload: t.payload,
+    });
+    console.log(`Seeded rate table ${t.tableType}@${t.effectiveFrom}`);
   }
   process.exit(0);
 }

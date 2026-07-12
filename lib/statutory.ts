@@ -1,4 +1,7 @@
 import type { Employee } from "./db/schema";
+import { computeShg } from "./payroll/shg";
+import { formatCents } from "./payroll/money";
+import { SHG_TABLES, resolveTable, type ShgFund } from "./payroll/rate-tables";
 
 // Display-only derivation for the Statutory panel (UI/UX spec §4.3).
 // The real payroll engine (Phase 2) reads versioned rate_tables; these
@@ -51,7 +54,10 @@ const PASS_LABELS: Record<string, string> = {
   ep: "Employment Pass",
 };
 
-export function deriveStatutory(employee: Employee): StatutoryLine[] {
+export function deriveStatutory(
+  employee: Employee,
+  monthlyWagesCents?: number,
+): StatutoryLine[] {
   const lines: StatutoryLine[] = [];
   const isLocal =
     employee.residencyStatus === "citizen" || employee.residencyStatus === "pr";
@@ -94,12 +100,22 @@ export function deriveStatutory(employee: Employee): StatutoryLine[] {
   if (isLocal && employee.race && SHG_FUNDS[employee.race]) {
     const { fund, code } = SHG_FUNDS[employee.race];
     const optedOut = employee.shgOptOut?.[code] === true;
+    let tierNote = "tiered deduction by wage band";
+    if (!optedOut && monthlyWagesCents && monthlyWagesCents > 0) {
+      const shg = computeShg(
+        code as ShgFund,
+        monthlyWagesCents,
+        false,
+        resolveTable(SHG_TABLES, new Date().toISOString().slice(0, 7)),
+      );
+      tierNote = `${formatCents(shg.amountCents)}/month tier at current salary`;
+    }
     lines.push({
       scheme: "SHG",
       applies: !optedOut,
       detail: optedOut
         ? `${fund} — opted out`
-        : `${fund} — tiered deduction by wage band, remitted with CPF submission`,
+        : `${fund} — ${tierNote}, remitted with CPF submission`,
     });
   } else if (isLocal) {
     lines.push({

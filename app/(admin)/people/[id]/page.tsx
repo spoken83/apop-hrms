@@ -61,7 +61,10 @@ export default async function EmployeeProfilePage({
   ]);
 
   const current = history.find((e) => e.endDate === null);
-  const statutory = deriveStatutory(employee);
+  const statutory = deriveStatutory(
+    employee,
+    current?.baseSalary ? Math.round(Number(current.baseSalary) * 100) : undefined,
+  );
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

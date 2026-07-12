@@ -109,6 +109,24 @@ export const employments = pgTable("employments", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Statutory rates are versioned by effective date, never hardcoded in the
+// engine. CPF 55-65 rates already have announced increases for 1 Jan 2027.
+export const rateTableTypeEnum = pgEnum("rate_table_type", [
+  "cpf",
+  "sdl",
+  "shg",
+  "fwl",
+]);
+
+export const rateTables = pgTable("rate_tables", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tableType: rateTableTypeEnum("table_type").notNull(),
+  effectiveFrom: date("effective_from").notNull(),
+  effectiveTo: date("effective_to"),
+  payload: jsonb("payload").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const entitiesRelations = relations(entities, ({ many }) => ({
   outlets: many(outlets),
   employments: many(employments),
