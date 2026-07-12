@@ -15,6 +15,13 @@
       "when": 1783828423710,
       "tag": "0001_ancient_gravity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783830637279,
+      "tag": "0002_broken_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }

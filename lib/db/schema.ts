@@ -1,6 +1,7 @@
 import {
   boolean,
   date,
+  integer,
   jsonb,
   numeric,
   pgEnum,
@@ -126,6 +127,149 @@ export const rateTables = pgTable("rate_tables", {
   payload: jsonb("payload").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+export const payrollRunStatusEnum = pgEnum("payroll_run_status", [
+  "draft",
+  "confirmed",
+]);
+
+export const payslipLineTypeEnum = pgEnum("payslip_line_type", [
+  "basic",
+  "hourly_pay",
+  "ot",
+  "ph_pay",
+  "allowance",
+  "bonus",
+  "npl_deduction",
+  "deduction",
+  "cpf_ee",
+  "cpf_er",
+  "sdl",
+  "shg_cdac",
+  "shg_sinda",
+  "shg_mbmf",
+  "shg_ecf",
+  "net_pay",
+]);
+
+export const adjustmentKindEnum = pgEnum("adjustment_kind", [
+  "allowance", // ordinary wages, attracts CPF as OW
+  "bonus", // additional wages, attracts CPF as AW
+  "deduction", // post-CPF net deduction
+]);
+
+export const payrollRuns = pgTable("payroll_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entityId: uuid("entity_id")
+    .notNull()
+    .references(() => entities.id),
+  periodMonth: text("period_month").notNull(), // YYYY-MM
+  status: payrollRunStatusEnum("status").notNull().default("draft"),
+  adviceCode: text("advice_code").notNull(), // 01-99, differs per submission
+  rateTableVersions: jsonb("rate_table_versions")
+    .$type<Record<string, string>>()
+    .notNull()
+    .default({}),
+  confirmedAt: timestamp("confirmed_at"),
+  cpfSubmittedAt: timestamp("cpf_submitted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// One row per employment per run: aggregates for review table + EZPay file.
+// Full line detail with calculation traces lives in payslip_lines.
+export const payslips = pgTable("payslips", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  runId: uuid("run_id")
+    .notNull()
+    .references(() => payrollRuns.id),
+  employmentId: uuid("employment_id")
+    .notNull()
+    .references(() => employments.id),
+  owCents: integer("ow_cents").notNull().default(0),
+  awCents: integer("aw_cents").notNull().default(0),
+  owSubjectCents: integer("ow_subject_cents").notNull().default(0),
+  awSubjectCents: integer("aw_subject_cents").notNull().default(0),
+  grossCents: integer("gross_cents").notNull().default(0),
+  cpfEmployeeCents: integer("cpf_ee_cents").notNull().default(0),
+  cpfEmployerCents: integer("cpf_er_cents").notNull().default(0),
+  sdlCents: integer("sdl_cents").notNull().default(0),
+  shgFund: text("shg_fund"), // cdac | sinda | mbmf | ecf | null
+  shgCents: integer("shg_cents").notNull().default(0),
+  netCents: integer("net_cents").notNull().default(0),
+  // EZPay employment status: E existing, N new joiner, L leaver, O both
+  ezpayStatus: text("ezpay_status").notNull().default("E"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const payslipLines = pgTable("payslip_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  payslipId: uuid("payslip_id")
+    .notNull()
+    .references(() => payslips.id),
+  lineType: payslipLineTypeEnum("line_type").notNull(),
+  label: text("label").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  trace: jsonb("trace"), // { formula, inputs, rateTable }
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const runAdjustments = pgTable("run_adjustments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  runId: uuid("run_id")
+    .notNull()
+    .references(() => payrollRuns.id),
+  employmentId: uuid("employment_id")
+    .notNull()
+    .references(() => employments.id),
+  kind: adjustmentKindEnum("kind").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const payrollRunsRelations = relations(payrollRuns, ({ one, many }) => ({
+  entity: one(entities, {
+    fields: [payrollRuns.entityId],
+    references: [entities.id],
+  }),
+  payslips: many(payslips),
+  adjustments: many(runAdjustments),
+}));
+
+export const payslipsRelations = relations(payslips, ({ one, many }) => ({
+  run: one(payrollRuns, {
+    fields: [payslips.runId],
+    references: [payrollRuns.id],
+  }),
+  employment: one(employments, {
+    fields: [payslips.employmentId],
+    references: [employments.id],
+  }),
+  lines: many(payslipLines),
+}));
+
+export const payslipLinesRelations = relations(payslipLines, ({ one }) => ({
+  payslip: one(payslips, {
+    fields: [payslipLines.payslipId],
+    references: [payslips.id],
+  }),
+}));
+
+export const runAdjustmentsRelations = relations(runAdjustments, ({ one }) => ({
+  run: one(payrollRuns, {
+    fields: [runAdjustments.runId],
+    references: [payrollRuns.id],
+  }),
+  employment: one(employments, {
+    fields: [runAdjustments.employmentId],
+    references: [employments.id],
+  }),
+}));
+
+export type PayrollRun = typeof payrollRuns.$inferSelect;
+export type Payslip = typeof payslips.$inferSelect;
+export type PayslipLine = typeof payslipLines.$inferSelect;
+export type RunAdjustment = typeof runAdjustments.$inferSelect;
 
 export const entitiesRelations = relations(entities, ({ many }) => ({
   outlets: many(outlets),
