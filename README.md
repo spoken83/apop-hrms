@@ -17,14 +17,18 @@ Everything runs in OrbStack containers — app (Node 22) and Postgres 17:
 
 ```bash
 cp .env.example .env       # local defaults work as-is
-docker compose up -d       # app on localhost:3000, Postgres on localhost:5433
+docker compose up -d
 docker compose logs -f app # watch the dev server
 ```
 
-The app container installs its own (Linux) `node_modules` in a named volume
-and hot-reloads from the bind-mounted source. Inside the compose network the
-app reaches the db at `db:5432`; host-side tools (drizzle-kit, seeds, editor
-tooling) use `localhost:5433` from `.env`.
+App: **http://apop-hrms.orb.local** · Postgres: `apop-hrms-db.orb.local:5432`
+
+No host ports are published — OrbStack container domains route directly to
+each container, so multiple projects can run side by side without port
+conflicts. The app container installs its own (Linux) `node_modules` in a
+named volume and hot-reloads from the bind-mounted source. Inside the compose
+network the app reaches the db at `db:5432`; host-side tools (drizzle-kit,
+seeds) use the `apop-hrms-db.orb.local` URL from `.env`.
 
 Database setup and host-side tooling still need Node 22 locally (`nvm use`):
 

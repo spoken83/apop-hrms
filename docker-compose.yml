@@ -8,8 +8,11 @@ services:
       # Overrides .env (which points at localhost:5433 for host-side tools);
       # inside the compose network the db is reachable at db:5432.
       DATABASE_URL: postgresql://hrms:hrms@db:5432/hrms
-    ports:
-      - "3000:3000"
+    labels:
+      # OrbStack routes http://apop-hrms.orb.local straight to the container —
+      # no host port binding, so parallel projects never conflict.
+      dev.orbstack.domains: apop-hrms.orb.local
+      dev.orbstack.http-port: "3000"
     volumes:
       - .:/app
       # Linux-native node_modules, kept separate from any host install
@@ -25,8 +28,6 @@ services:
       POSTGRES_USER: hrms
       POSTGRES_PASSWORD: hrms
       POSTGRES_DB: hrms
-    ports:
-      - "5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
