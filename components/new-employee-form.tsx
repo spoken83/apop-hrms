@@ -9,6 +9,9 @@ import { Label } from "@/components/ui/label";
 
 type Option = { id: string; name: string };
 
+const ROLE_OPTIONS = ["Admin", "Staff", "Cashier", "Manager"];
+const NATIONALITY_OPTIONS = ["Singaporean", "Malaysian", "Others"];
+
 const selectClass =
   "border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs focus-visible:ring-2 focus-visible:ring-ring/50 outline-none";
 
@@ -48,13 +51,24 @@ export function NewEmployeeForm({
   const [employmentType, setEmploymentType] = useState("monthly");
   const [entityId, setEntityId] = useState(entities[0]?.id ?? "");
   const [isScheduled, setIsScheduled] = useState(true);
+  const [nationality, setNationality] = useState("Singaporean");
 
   const isLocal = residency === "citizen" || residency === "pr";
   const entityOutlets = outlets.filter((o) => o.entityId === entityId);
   const errors = state.errors;
+  // Values from the last failed submit; uncontrolled inputs restore from these.
+  const v = state.values ?? {};
+
+  function onResidencyChange(next: string) {
+    const nextLocal = next === "citizen" || next === "pr";
+    // Only nudge the nationality default if the user hasn't picked "Others"
+    if (nextLocal && nationality === "Malaysian") setNationality("Singaporean");
+    if (!nextLocal && nationality === "Singaporean") setNationality("Malaysian");
+    setResidency(next);
+  }
 
   return (
-    <form action={formAction} className="max-w-2xl space-y-6">
+    <form action={formAction} noValidate className="max-w-2xl space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Personal</CardTitle>
@@ -62,7 +76,7 @@ export function NewEmployeeForm({
         <CardContent className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <Field label="Full name (as per NRIC/passport)" name="fullName" errors={errors}>
-              <Input id="fullName" name="fullName" required />
+              <Input id="fullName" name="fullName" defaultValue={v.fullName} required />
             </Field>
           </div>
           <Field label="Residency status" name="residencyStatus" errors={errors}>
@@ -71,7 +85,7 @@ export function NewEmployeeForm({
               name="residencyStatus"
               className={selectClass}
               value={residency}
-              onChange={(e) => setResidency(e.target.value)}
+              onChange={(e) => onResidencyChange(e.target.value)}
             >
               <option value="citizen">Singapore Citizen</option>
               <option value="pr">Permanent Resident</option>
@@ -88,28 +102,47 @@ export function NewEmployeeForm({
                 name="idNumber"
                 placeholder={isLocal ? "S1234567A" : "G1234567X"}
                 className="font-mono uppercase"
+                defaultValue={v.idNumber}
                 required
               />
             </>
           </Field>
           <Field label="Date of birth" name="dob" errors={errors}>
-            <Input id="dob" name="dob" type="date" required />
+            <Input id="dob" name="dob" type="date" defaultValue={v.dob} required />
           </Field>
           <Field label="Nationality" name="nationality" errors={errors}>
-            <Input
-              id="nationality"
-              name="nationality"
-              defaultValue={isLocal ? "Singaporean" : "Malaysian"}
-              key={isLocal ? "local" : "foreign"}
-              required
-            />
+            <>
+              <select
+                id="nationality-select"
+                name={nationality === "Others" ? undefined : "nationality"}
+                className={selectClass}
+                value={nationality}
+                onChange={(e) => setNationality(e.target.value)}
+              >
+                {NATIONALITY_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              {nationality === "Others" ? (
+                <Input
+                  id="nationality"
+                  name="nationality"
+                  placeholder="e.g. Indonesian"
+                  defaultValue={v.nationality}
+                  className="mt-1.5"
+                  required
+                />
+              ) : null}
+            </>
           </Field>
           <Field
             label={isLocal ? "Race (determines SHG fund)" : "Race (optional)"}
             name="race"
             errors={errors}
           >
-            <select id="race" name="race" className={selectClass} defaultValue="">
+            <select id="race" name="race" className={selectClass} defaultValue={v.race ?? ""}>
               <option value="">—</option>
               <option value="chinese">Chinese</option>
               <option value="malay">Malay</option>
@@ -120,20 +153,31 @@ export function NewEmployeeForm({
           </Field>
           {!isLocal && (
             <Field label="Pass expiry date" name="passExpiryDate" errors={errors}>
-              <Input id="passExpiryDate" name="passExpiryDate" type="date" required />
+              <Input
+                id="passExpiryDate"
+                name="passExpiryDate"
+                type="date"
+                defaultValue={v.passExpiryDate}
+                required
+              />
             </Field>
           )}
           <Field label="Mobile" name="mobile" errors={errors}>
-            <Input id="mobile" name="mobile" type="tel" placeholder="9123 4567" />
+            <Input id="mobile" name="mobile" type="tel" placeholder="9123 4567" defaultValue={v.mobile} />
           </Field>
           <Field label="Email" name="email" errors={errors}>
-            <Input id="email" name="email" type="email" />
+            <Input id="email" name="email" type="email" defaultValue={v.email} />
           </Field>
           <Field label="Bank" name="bankName" errors={errors}>
-            <Input id="bankName" name="bankName" placeholder="OCBC" />
+            <Input id="bankName" name="bankName" placeholder="OCBC" defaultValue={v.bankName} />
           </Field>
           <Field label="Bank account no" name="bankAccountNo" errors={errors}>
-            <Input id="bankAccountNo" name="bankAccountNo" className="font-mono" />
+            <Input
+              id="bankAccountNo"
+              name="bankAccountNo"
+              className="font-mono"
+              defaultValue={v.bankAccountNo}
+            />
           </Field>
         </CardContent>
       </Card>
@@ -158,11 +202,22 @@ export function NewEmployeeForm({
               ))}
             </select>
           </Field>
-          <Field label="Role title" name="roleTitle" errors={errors}>
-            <Input id="roleTitle" name="roleTitle" placeholder="Barista" required />
+          <Field label="Role" name="roleTitle" errors={errors}>
+            <select
+              id="roleTitle"
+              name="roleTitle"
+              className={selectClass}
+              defaultValue={v.roleTitle ?? "Staff"}
+            >
+              {ROLE_OPTIONS.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Start date" name="startDate" errors={errors}>
-            <Input id="startDate" name="startDate" type="date" required />
+            <Input id="startDate" name="startDate" type="date" defaultValue={v.startDate} required />
           </Field>
           <Field label="Pay type" name="employmentType" errors={errors}>
             <select
@@ -182,9 +237,10 @@ export function NewEmployeeForm({
                 id="baseSalary"
                 name="baseSalary"
                 type="number"
-                step="0.01"
+                step="100"
                 min="0"
                 className="font-mono"
+                defaultValue={v.baseSalary}
                 required
               />
             </Field>
@@ -194,9 +250,10 @@ export function NewEmployeeForm({
                 id="hourlyRate"
                 name="hourlyRate"
                 type="number"
-                step="0.01"
+                step="0.50"
                 min="0"
                 className="font-mono"
+                defaultValue={v.hourlyRate}
                 required
               />
             </Field>
@@ -210,9 +267,10 @@ export function NewEmployeeForm({
               id="contractualHoursPerWeek"
               name="contractualHoursPerWeek"
               type="number"
-              step="0.5"
+              step="1"
               min="0"
               placeholder="44"
+              defaultValue={v.contractualHoursPerWeek}
             />
           </Field>
           <div className="col-span-2 flex items-center gap-2">
@@ -230,7 +288,12 @@ export function NewEmployeeForm({
           </div>
           {isScheduled && (
             <Field label="Outlet" name="outletId" errors={errors}>
-              <select id="outletId" name="outletId" className={selectClass} defaultValue="">
+              <select
+                id="outletId"
+                name="outletId"
+                className={selectClass}
+                defaultValue={v.outletId ?? ""}
+              >
                 <option value="">— none yet —</option>
                 {entityOutlets.map((outlet) => (
                   <option key={outlet.id} value={outlet.id}>

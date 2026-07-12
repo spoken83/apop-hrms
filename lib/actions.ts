@@ -12,6 +12,9 @@ import { employeeSchema, employmentSchema } from "./validation";
 export type FormState = {
   errors?: Record<string, string>;
   message?: string;
+  // Submitted values echoed back on validation failure so uncontrolled
+  // inputs can restore what the user typed (React resets them post-action).
+  values?: Record<string, string>;
 };
 
 export async function setSelectedEntity(entityId: string) {
@@ -65,6 +68,7 @@ export async function createEmployee(
         ...(employmentParsed.success ? {} : zodErrors(employmentParsed.error)),
       },
       message: "Fix the highlighted fields.",
+      values: raw,
     };
   }
 
@@ -75,6 +79,7 @@ export async function createEmployee(
     return {
       errors: { idNumber: "An employee with this NRIC/FIN already exists" },
       message: "Fix the highlighted fields.",
+      values: raw,
     };
   }
 
