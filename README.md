@@ -13,15 +13,25 @@ Postgres (Neon in production, OrbStack container locally) · Vercel
 
 ## Local development
 
-Requires Node 22 (`nvm use`) and OrbStack.
+Everything runs in OrbStack containers — app (Node 22) and Postgres 17:
 
 ```bash
-docker compose up -d       # Postgres 17 on localhost:5433
 cp .env.example .env       # local defaults work as-is
-npm install
+docker compose up -d       # app on localhost:3000, Postgres on localhost:5433
+docker compose logs -f app # watch the dev server
+```
+
+The app container installs its own (Linux) `node_modules` in a named volume
+and hot-reloads from the bind-mounted source. Inside the compose network the
+app reaches the db at `db:5432`; host-side tools (drizzle-kit, seeds, editor
+tooling) use `localhost:5433` from `.env`.
+
+Database setup and host-side tooling still need Node 22 locally (`nvm use`):
+
+```bash
+npm install                # host node_modules for tooling/editor
 npm run db:migrate         # apply migrations
 npm run db:seed            # seed the three entities
-npm run dev
 ```
 
 ## Database
