@@ -64,7 +64,10 @@ export async function addAdjustment(
   return { message: "Adjustment added" };
 }
 
-export async function removeAdjustment(runId: string, adjustmentId: string) {
+// Form action so removal happens via a native form submit (works without JS).
+export async function removeAdjustment(formData: FormData) {
+  const runId = String(formData.get("runId") ?? "");
+  const adjustmentId = String(formData.get("adjustmentId") ?? "");
   const run = await db.query.payrollRuns.findFirst({
     where: eq(payrollRuns.id, runId),
   });
@@ -119,7 +122,10 @@ export async function confirmPayrollRun(
   return { message: "Payroll confirmed" };
 }
 
-export async function markCpfSubmitted(runId: string, submitted: boolean) {
+// Form action: toggles the CPF-submitted mark via a native form submit.
+export async function markCpfSubmitted(formData: FormData) {
+  const runId = String(formData.get("runId") ?? "");
+  const submitted = formData.get("submitted") === "true";
   await db
     .update(payrollRuns)
     .set({ cpfSubmittedAt: submitted ? new Date() : null })

@@ -20,7 +20,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -85,14 +84,18 @@ export function RemoveAdjustmentButton({
   adjustmentId: string;
 }) {
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="text-destructive"
-      onClick={() => removeAdjustment(runId, adjustmentId)}
-    >
-      Remove
-    </Button>
+    <form action={removeAdjustment} className="inline">
+      <input type="hidden" name="runId" value={runId} />
+      <input type="hidden" name="adjustmentId" value={adjustmentId} />
+      <Button
+        type="submit"
+        variant="ghost"
+        size="sm"
+        className="text-destructive"
+      >
+        Remove
+      </Button>
+    </form>
   );
 }
 
@@ -154,13 +157,31 @@ export function CpfSubmittedCheckbox({
   submitted: boolean;
   deadline: string;
 }) {
+  // A form-submit toggle rather than a checkbox, so it works via native
+  // submission (no client-only onChange handler that can silently no-op).
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <Checkbox
-        checked={submitted}
-        onCheckedChange={(checked) => markCpfSubmitted(runId, checked === true)}
-      />
-      Uploaded at cpf.gov.sg EZPay and paid — due {deadline}
-    </label>
+    <form action={markCpfSubmitted} className="flex items-center gap-3 text-sm">
+      <input type="hidden" name="runId" value={runId} />
+      <input type="hidden" name="submitted" value={(!submitted).toString()} />
+      {submitted ? (
+        <>
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-success/15 px-2 py-1 font-medium text-success">
+            ✓ Marked submitted
+          </span>
+          <Button type="submit" variant="ghost" size="sm">
+            Undo
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button type="submit" variant="outline" size="sm">
+            Mark uploaded &amp; paid
+          </Button>
+          <span className="text-muted-foreground">
+            at cpf.gov.sg EZPay — due {deadline}
+          </span>
+        </>
+      )}
+    </form>
   );
 }
