@@ -18,7 +18,14 @@ export async function GET(req: NextRequest) {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const value = isValid ? id : ALL_ENTITIES;
 
-  const res = NextResponse.redirect(new URL(next, req.nextUrl.origin));
+  // Relative Location so the browser resolves it against whatever origin it is
+  // actually on — works identically on localhost (http), *.orb.local, and the
+  // Vercel https domain. Reconstructing the origin from headers can produce the
+  // wrong protocol (e.g. https://localhost:3000) and a dead redirect.
+  const res = new NextResponse(null, {
+    status: 303,
+    headers: { Location: next },
+  });
   res.cookies.set(ENTITY_COOKIE, value, {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,

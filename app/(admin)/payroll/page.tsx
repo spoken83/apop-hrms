@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq, isNull, sql, sum } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { entities, payrollRuns } from "@/lib/db/schema";
+import { entities, employments, payrollRuns, payslips } from "@/lib/db/schema";
 import { ALL_ENTITIES, getSelectedEntityId } from "@/lib/entity-context";
 import { formatCents } from "@/lib/payroll/money";
 import { StartRunForm } from "@/components/start-run-form";
@@ -14,8 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { sql } from "drizzle-orm";
-import { employments, payslips } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -32,14 +30,28 @@ export default async function PayrollPage() {
   // Payroll is always run for one entity. When no specific entity is in scope,
   // let the user choose right here instead of sending them to the sidebar.
   if (selectedEntity === ALL_ENTITIES) {
-    const allEntities = await db
-      .select({
-        id: entities.id,
-        name: entities.name,
-        headcount: sql<number>`(select count(*) from ${employments} where ${employments.entityId} = ${entities.id} and ${employments.endDate} is null)`,
-      })
-      .from(entities)
-      .orderBy(entities.createdAt);
+    // Active headcount per entity via a grouped aggregate, then merged in JS.
+    // (A correlated subquery in the select clause does not qualify columns
+    // and silently miscounts — use an explicit group-by instead.)
+    const [entityRows, counts] = await Promise.all([
+      db
+        .select({ id: entities.id, name: entities.name })
+        .from(entities)
+        .orderBy(entities.createdAt),
+      db
+        .select({
+          entityId: employments.entityId,
+          n: count(),
+        })
+        .from(employments)
+        .where(isNull(employments.endDate))
+        .groupBy(employments.entityId),
+    ]);
+    const countByEntity = new Map(counts.map((c) => [c.entityId, c.n]));
+    const allEntities = entityRows.map((e) => ({
+      ...e,
+      headcount: countByEntity.get(e.id) ?? 0,
+    }));
 
     return (
       <div className="mx-auto max-w-3xl space-y-6">
@@ -73,6 +85,8 @@ export default async function PayrollPage() {
     );
   }
 
+  // Per-run headcount and net total via a left join + group by, so each run's
+  // aggregates come straight from its payslips (runs with no payslips read 0).
   const [entity, runs] = await Promise.all([
     db.query.entities.findFirst({ where: eq(entities.id, selectedEntity) }),
     db
@@ -81,11 +95,13 @@ export default async function PayrollPage() {
         periodMonth: payrollRuns.periodMonth,
         status: payrollRuns.status,
         cpfSubmittedAt: payrollRuns.cpfSubmittedAt,
-        headcount: sql<number>`(select count(*) from ${payslips} where ${payslips.runId} = ${payrollRuns.id})`,
-        netTotal: sql<number>`(select coalesce(sum(${payslips.netCents}),0) from ${payslips} where ${payslips.runId} = ${payrollRuns.id})`,
+        headcount: count(payslips.id),
+        netTotal: sql<number>`coalesce(${sum(payslips.netCents)}, 0)`,
       })
       .from(payrollRuns)
+      .leftJoin(payslips, eq(payslips.runId, payrollRuns.id))
       .where(eq(payrollRuns.entityId, selectedEntity))
+      .groupBy(payrollRuns.id)
       .orderBy(desc(payrollRuns.periodMonth)),
   ]);
 
