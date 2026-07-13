@@ -12,10 +12,14 @@ import {
 } from "./payroll/run-service";
 import type { FormState } from "./actions";
 
-export async function startPayrollRun(
-  entityId: string,
-  periodMonth: string,
-): Promise<void> {
+// Invoked directly as a <form action>, so Next handles the redirect natively
+// (progressive enhancement — works even if client JS never hydrates).
+export async function startPayrollRun(formData: FormData): Promise<void> {
+  const entityId = String(formData.get("entityId") ?? "");
+  const periodMonth = String(formData.get("periodMonth") ?? "");
+  if (!entityId || !/^\d{4}-\d{2}$/.test(periodMonth)) {
+    redirect("/payroll");
+  }
   const runId = await createDraftRun(entityId, periodMonth);
   revalidatePath("/payroll");
   redirect(`/payroll/${runId}`);
