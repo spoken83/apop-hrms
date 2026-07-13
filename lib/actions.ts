@@ -2,11 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "./db";
 import { employees, employments, entities, outlets } from "./db/schema";
-import { ENTITY_COOKIE } from "./entity-context";
 import { employeeSchema, employmentSchema } from "./validation";
 
 export type FormState = {
@@ -16,12 +14,6 @@ export type FormState = {
   // inputs can restore what the user typed (React resets them post-action).
   values?: Record<string, string>;
 };
-
-export async function setSelectedEntity(entityId: string) {
-  const store = await cookies();
-  store.set(ENTITY_COOKIE, entityId, { path: "/", maxAge: 60 * 60 * 24 * 365 });
-  revalidatePath("/", "layout");
-}
 
 function zodErrors(error: { issues: { path: PropertyKey[]; message: string }[] }) {
   const errors: Record<string, string> = {};

@@ -1,15 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronDownIcon } from "lucide-react";
-import { setSelectedEntity } from "@/lib/actions";
+import { usePathname } from "next/navigation";
+import { CheckIcon } from "lucide-react";
 import { ALL_ENTITIES } from "@/lib/entity-constants";
+import { cn } from "@/lib/utils";
 
 type EntityOption = { id: string; name: string };
 
-// Native select: reliable across hydration and consistent with the rest of
-// the app's dropdowns. Styled to sit on the dark sidebar.
+// Entity scope as a list of plain <a> links. Selecting one navigates to the
+// /entity/set route, which sets the cookie server-side and redirects back to
+// the current page. No client state, no hydration dependency — a stale bundle
+// or failed hydration cannot break it. usePathname only builds the return path
+// and highlights the active entity; the anchors work regardless.
 export function EntitySwitcher({
   entities,
   selected,
@@ -17,40 +19,36 @@ export function EntitySwitcher({
   entities: EntityOption[];
   selected: string;
 }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  // Optimistic value so the select reflects the choice immediately instead of
-  // snapping back to the server value while the refresh is in flight.
-  const [value, setValue] = useState(selected);
-
-  function onChange(next: string) {
-    setValue(next);
-    startTransition(async () => {
-      // Persist the cookie, then force the current route to re-fetch its RSC
-      // payload so it re-reads the cookie. revalidatePath alone does not
-      // refresh the page that triggered the action.
-      await setSelectedEntity(next);
-      router.refresh();
-    });
-  }
+  const pathname = usePathname() || "/";
+  const options = [...entities, { id: ALL_ENTITIES, name: "All entities" }];
 
   return (
-    <div className="relative">
-      <select
-        aria-label="Selected entity"
-        value={value}
-        disabled={isPending}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 w-full appearance-none rounded-lg border border-sidebar-border bg-sidebar-accent px-3 pr-8 text-sm font-medium text-sidebar-accent-foreground outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60 disabled:opacity-60"
-      >
-        {entities.map((entity) => (
-          <option key={entity.id} value={entity.id}>
-            {entity.name}
-          </option>
-        ))}
-        <option value={ALL_ENTITIES}>All entities</option>
-      </select>
-      <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-sidebar-accent-foreground/70" />
+    <div className="space-y-1">
+      <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-sidebar-foreground/50">
+        Entity
+      </p>
+      <div className="flex flex-col gap-0.5">
+        {options.map((option) => {
+          const active = option.id === selected;
+          return (
+            <a
+              key={option.id}
+              href={`/entity/set?id=${option.id}&next=${encodeURIComponent(pathname)}`}
+              aria-current={active ? "true" : undefined}
+              className={cn(
+                "flex items-center justify-between rounded-md px-3 py-1.5 text-sm transition-colors",
+                active
+                  ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                option.id === ALL_ENTITIES && !active && "text-sidebar-foreground/55",
+              )}
+            >
+              {option.name}
+              {active ? <CheckIcon className="size-3.5" /> : null}
+            </a>
+          );
+        })}
+      </div>
     </div>
   );
 }

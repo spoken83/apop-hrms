@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { sql } from "drizzle-orm";
-import { payslips } from "@/lib/db/schema";
+import { employments, payslips } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +29,45 @@ function monthLabel(periodMonth: string): string {
 export default async function PayrollPage() {
   const selectedEntity = await getSelectedEntityId();
 
+  // Payroll is always run for one entity. When no specific entity is in scope,
+  // let the user choose right here instead of sending them to the sidebar.
   if (selectedEntity === ALL_ENTITIES) {
+    const allEntities = await db
+      .select({
+        id: entities.id,
+        name: entities.name,
+        headcount: sql<number>`(select count(*) from ${employments} where ${employments.entityId} = ${entities.id} and ${employments.endDate} is null)`,
+      })
+      .from(entities)
+      .orderBy(entities.createdAt);
+
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Payroll</h1>
-        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          Payroll runs are per entity. Pick an entity in the sidebar switcher
-          to run or review payroll.
+      <div className="mx-auto max-w-3xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Payroll</h1>
+          <p className="text-sm text-muted-foreground">
+            Choose an entity to run or review its payroll.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {allEntities.map((e) => (
+            <a
+              key={e.id}
+              href={`/entity/set?id=${e.id}&next=/payroll`}
+              className="group rounded-lg border p-5 transition-colors hover:border-ring hover:bg-accent/40"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-base font-medium">{e.name}</span>
+                <span className="text-muted-foreground transition-transform group-hover:translate-x-0.5">
+                  →
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {Number(e.headcount)}{" "}
+                {Number(e.headcount) === 1 ? "active employee" : "active employees"}
+              </p>
+            </a>
+          ))}
         </div>
       </div>
     );
